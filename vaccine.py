@@ -9,16 +9,14 @@ s = requests.Session()
 s.headers["User-Agent"] = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) " \
     "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/83.0.4103.106 Safari/537.36"
 
-def login(login_url):
-    print("Log in the web")
-    username = input("username:")
-    password = input("password:")
-    login_payload = {
-        "username": username,
-        "password": password,
-        "Login": "Login",
-    }
-    r = s.get(login_url)
+def parse_cookies(string):
+    string = string.split("&")
+    for c in string:
+        if c.count("=") != 1:
+            print("Error parsing cookies")
+            quit()
+        name, value = c.split("=")
+        s.cookies.set(name=name, value=value)
 
 
 def get_all_forms(url):
@@ -63,7 +61,32 @@ def is_vulnerable(response):
             return True
     return False
 
-
+def check_form(url):
+    forms = get_all_forms(url)
+    for form in forms:
+        form_details = get_form_details(form)
+        for c in "\"'":
+            # Get data to submit
+            data = {}
+            for input_tag in form_details["inputs"]:
+                if input_tag["value"] or input_tag["type"] == "hidden":
+                    try:
+                        data[input_tag["name"]] = input_tag["value"] + c
+                    except:
+                        pass
+                elif input_tag["type"] != "submit":
+                    data[input_tag["name"]] = f"test{c}"
+            # Get url to submit data
+            url = urljoin(url, form_details["action"])
+            if form_details["method"] == "post":
+                res = s.post(url, data=data)
+            elif form_details["method"] == "get":
+                res = s.get(url, params=data)
+            # Check response
+            if is_vulnerable(res):
+                print("\nSQL Injection vulnerability detected in:\n\t", url)
+                print("data:")
+                pprint(data)
 
 def main():
     parser = argparse.ArgumentParser()
@@ -73,21 +96,13 @@ def main():
         help="Type of request, if not specified GET will be used")
     parser.add_argument("url", help="url to scan")
     parser.add_argument("-c", "--cookie", 
-            help="introduce cookies in form of 'name': 'value', etc")
+            help="introduce cookies in form of 'name=value&name=value...'")
     args = parser.parse_args()
 
     if (args.cookie):
-        cookie = args.cookie.replace("'", '"')
-        try:
-            cookie = json.loads(cookie)
-        except:
-            print("Error: cookie wrong format")
-            quit()
-        for key in cookie:
-            new_cookie = {}
-            new_cookie['name'] = key
-            new_cookie['value'] = cookie[key]
-            s.cookies.set(**new_cookie)
+        parse_cookies(args.cookie)
+
+    check_form(args.url)
 
 if __name__ == "__main__":
     main()
