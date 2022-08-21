@@ -1,6 +1,7 @@
 import argparse
 from urllib.parse import urljoin
 from pprint import pprint
+import urllib.parse
 
 import requests
 from bs4 import BeautifulSoup as bs
@@ -9,6 +10,8 @@ from injections import injections
 s = requests.Session()
 s.headers["User-Agent"] = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) " \
     "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/83.0.4103.106 Safari/537.36"
+
+inj_type = 0 # 1: mysql/mariadb, 2: hsqldb numeric, 3: hsqldb string
 
 def parse_cookies(string):
     string = string.split("&")
@@ -80,6 +83,7 @@ def is_vulnerable(response):
         "malformed",
         # Python
         "unrecognized token",
+        "operationalerror",
         # Column mismatch
         "column number mismatch",
         "statements have a different number of columns",
@@ -158,6 +162,7 @@ def check_url(url, data, method):
         data[k] = value
 
 def check_injections(url, data, key, method):
+    global inj_type
     print("\tTrying BOOLEAN type injections")
     print("\t- Numeric:")
     check_list_injections(url, data, key, method, injections["numeric"])
@@ -167,19 +172,23 @@ def check_injections(url, data, key, method):
     print("\t- mysql/mariadb numeric:")
     check_list_injections(url, data, key, method, injections["mysql_num"])
     print("\t- mysql/mariadb string:")
-    check_list_injections(url, data, key, method, injections["mysql_str"])
+    if check_list_injections(url, data, key, method, injections["mysql_str"]):
+        inj_type = 1
     print("\t- hsqldb numeric:")
-    check_list_injections(url, data, key, method, injections["hsqldb_num"])
+    if check_list_injections(url, data, key, method, injections["hsqldb_num"]):
+        inj_type = 2
     print("\t- hsqldb string:")
-    check_list_injections(url, data, key, method, injections["hsqldb_str"])
-
+    if check_list_injections(url, data, key, method, injections["hsqldb_str"]):
+        inj_type = 3
 
 def check_list_injections(url, data, key, method, injects):
     for i in injects:
         data[key] = i
         try:
+            # Convert spaces in '%20' not in '+' in the url
+            data_url = urllib.parse.urlencode(data, quote_via=urllib.parse.quote)
             if method == "GET":
-                res = s.get(url, params=data)
+                res = s.get(url, params=data_url)
             elif method == "POST":
                 res = s.post(url, data=data)
         except Exception as e:
@@ -188,6 +197,8 @@ def check_list_injections(url, data, key, method, injects):
         if (res.status_code == 404):
             print("Error 404: incorrect url or whatever")
             quit()
+        # print(res.content)
+        # print(res.url)
         if not is_vulnerable(res):
             print(f"\t[X] Found injection:\n{i}")
             return True

