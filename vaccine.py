@@ -1,6 +1,5 @@
 import argparse
 from urllib.parse import urljoin
-from pprint import pprint
 import urllib.parse
 
 import requests
@@ -131,8 +130,6 @@ def check_form(url):
                 print("\nSQL Injection vulnerability detected in:\n\t", url)
                 for k in keys:
                     check_injections(url, data, k, form_details["method"].upper())
-                # print("data:")
-                # pprint(data)
     if not vulnerable:
         print(url, "\n\tdoesn't seem to be vulnerable")
 
